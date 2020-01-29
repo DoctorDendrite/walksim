@@ -1,20 +1,30 @@
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <string>
+#include <algorithm>    // std::find
 #include <conio.h>
 #include <Windows.h>
 
 using namespace std;
 
-void InitializeGame(vector<const char*>& CharList, vector<string>& currMap);
-void UpdateScreen(vector<const char*>& CharList, vector<string>& currMap, pair<int, int>& playerPos, HANDLE& hConsole);
+// Function declarations
+void InitializeGame(vector<string>& currMap);
+void MainMenu();
+void DisplayTitle(string title);
+void changeKeyBindings();
+void UpdateScreen(vector<string>& currMap, pair<int, int>& playerPos);
+bool canMove(char& currChar);
 void cls();
 
-enum ColorCodes
-{
-	BLUE = 9, GREEN, AQUA, RED, MAGENTA, YELLOW, WHITE
-};
 
+// Global variables
+HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+vector<int> keyBinds;
+vector<const char*> CharList;
+const vector<int> DefaultControls = { int('w'), int('s'), int('a'), int('d'), int('f'), int(' ') };
+enum keyCodes { MOVE_UP, MOVE_DOWN, MOVE_LEFT, MOVE_RIGHT, INTERACT, OPEN_INVENTORY, NUM_KEYCODES	};
+enum ColorCodes{	BLUE = 9, GREEN, AQUA, RED, MAGENTA, YELLOW, WHITE	};
 enum UnicodeChar
 {
 	Player, Floor, Horizontal, Vertical, TopLeftCorner, TopRightCorner, BottomLeftCorner, BottomRightCorner,
@@ -23,26 +33,21 @@ enum UnicodeChar
 
 bool canMoveUp, canMoveDown, canMoveLeft, canMoveRight;
 
-bool IsNonBlocking(char currChar)
-{
-	return currChar == '.' || currChar == 'x' || currChar == '+';
-}
-
 int main() {
 
 	// Set the output to UTF-8, so we can draw symbols like boxes
 	SetConsoleOutputCP(CP_UTF8);
-	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-
-	vector<const char*> CharList;
+		
 	vector<string> currMap;
 
+	bool stillPlaying = true, stillGaming = false; bool keepLooping = true;
 	int userInput; char currChar;
 	
 	// X, Y
 	pair<int, int> playerPos = {6, 3};
 
-	InitializeGame(CharList, currMap);
+	// Initialize the game's maps and data
+	InitializeGame(currMap);
 	
 	/*const char* s = u8"\u2592";
 	cout << s << endl << endl;
@@ -52,77 +57,118 @@ int main() {
 
 	}*/
 
-	// Game Loop
-	while(1){
+	// 
+	while (stillPlaying) {
 		
-		UpdateScreen(CharList, currMap, playerPos, hConsole);
-		
-		// Update booleans
-		canMoveUp = IsNonBlocking(currMap[playerPos.second - 1][playerPos.first]);
-		canMoveDown = IsNonBlocking(currMap[playerPos.second + 1][playerPos.first]);
-		canMoveLeft = IsNonBlocking(currMap[playerPos.second][playerPos.first - 1]);
-		canMoveRight = IsNonBlocking(currMap[playerPos.second][playerPos.first + 1]);
-		
-		// Wait for user input key before the world updates
-		userInput = _getch();
-		
-		// Replace with an if-else when we create a custom key binding function
-		switch (char(userInput)) {
+		MainMenu();
+		keepLooping = true;
 
-			// W
-		case 'w':
-		case 'W':
-		case 72:
+		while (keepLooping) {	
+			
+			userInput = _getch();
 
-			if (canMoveUp) {
-				playerPos.second--;
+			switch (userInput) {
+
+				// Play game
+			case int('4'):
+
+				stillGaming = true;
+				keepLooping = false;
+				break;
+
+				// Key Binding
+			case int('5') :
+
+				changeKeyBindings();
+				keepLooping = true;
+				cls();
+				MainMenu();
+				break;
+
+				// Quit
+			case int('6') :
+
+				stillGaming = false;
+				keepLooping = false;
+				stillPlaying = false;
+				break;
+
+			default:
+				// DEBUG test for ASCII lol
+				// cout << userInput << endl;
+				break;
 			}
-			break;
-
-			// S
-		case 's':
-		case 'S':
-		case 80:
-
-			if (canMoveDown) {
-				playerPos.second++;
-			}
-			break;
-
-			// A
-		case 'a':
-		case 'A':
-		case 75:
-
-			if (canMoveLeft) {
-				playerPos.first--;
-			}
-			break;
-
-			// D
-		case 'd':
-		case 'D':
-		case 77:
-
-			if (canMoveRight) {
-				playerPos.first++;
-			}
-			break;
-
+			
+			
 		}
-	}
-	
-	_getch();	
-	
+
+		// Game Loop
+		while (stillGaming) {
+
+			UpdateScreen(currMap, playerPos);
+
+			// Update booleans
+			currChar = currMap[playerPos.second - 1][playerPos.first];
+			canMoveUp = canMove(currChar);
+
+			currChar = currMap[playerPos.second + 1][playerPos.first];
+			canMoveDown = canMove(currChar);
+
+			currChar = currMap[playerPos.second][playerPos.first - 1];
+			canMoveLeft = canMove(currChar);
+
+			currChar = currMap[playerPos.second][playerPos.first + 1];
+			canMoveRight = canMove(currChar);
+
+			// Wait for user input key before the world updates
+			userInput = _getch();
+
+			// Force userInput to be lowercase
+			tolower(char(userInput));
+
+
+			// Detect user input
+			if (userInput == keyBinds[MOVE_UP]) {
+				if (canMoveUp) {
+					playerPos.second--;
+				}
+			}
+			if (userInput == keyBinds[MOVE_DOWN]) {
+				if (canMoveDown) {
+					playerPos.second++;
+				}
+			}
+			if (userInput == keyBinds[MOVE_LEFT]) {
+				if (canMoveLeft) {
+					playerPos.first--;
+				}
+			}
+			if (userInput == keyBinds[MOVE_RIGHT]) {
+				if (canMoveRight) {
+					playerPos.first++;
+				}
+			}
+			// TEMP - Esc (returns to main menu, should bring up Pause)
+			if (userInput == 27) {
+				stillGaming = false;
+			}// End detecting user input
+						
+		}	// End game loop, right before screen update
+
+	}	// End stillPlaying game loop
+
+	std::cout << "Quitting the game. Press any key to leave." << endl;
+	userInput = _getch();
+
 	return 0;
 }
 
 
-void UpdateScreen(vector<const char*>& CharList, vector<string>& currMap, pair<int, int>& playerPos, HANDLE& hConsole) {
+void UpdateScreen(vector<string>& currMap, pair<int, int>& playerPos) {
 
 	char currChar; string currPrint, currAction = "";
 	
-	system("cls");
+	cls();
 
 	// DEBUG MENU
 	/*SetConsoleTextAttribute(hConsole, WHITE);
@@ -239,6 +285,13 @@ void UpdateScreen(vector<const char*>& CharList, vector<string>& currMap, pair<i
 
 }
 
+
+bool canMove(char& currChar) {
+	return (currChar == '.' || currChar == 'x' || currChar == '+');
+}
+
+
+
 // https://stackoverflow.com/questions/34842526/update-console-without-flickering-c
 void cls()
 {
@@ -275,18 +328,20 @@ void cls()
 	SetConsoleCursorPosition(hOut, topLeft);
 }
 
-void InitializeGame(vector<const char*>& CharList, vector<string>& currMap)
+void InitializeGame(vector<string>& currMap)
 {
+	// Store all UTF-8 codes for symbols to print on screen
 	CharList = {
 
-		//	0 Player 		1 Floor			2 Horizontal	3 Vertical		4 TopLeft		5 TopRight		6 BottomLeft	7 BottomRight
+	//	0 Player 		1 Floor			2 Horizontal	3 Vertical		4 TopLeft		5 TopRight		6 BottomLeft	7 BottomRight
 		u8"\u263A",		u8"\u00B7",		u8"\u2550",		u8"\u2551",		u8"\u2554",		u8"\u2557",		u8"\u255A",		u8"\u255D",
 
-		//	8 Door			9 Corridor		
+	//	8 Door			9 Corridor		
 		u8"\u256C",		u8"\u2592",
 
 	};
 
+	// Temporary test map
 	currMap =
 	{
 
@@ -304,4 +359,218 @@ void InitializeGame(vector<const char*>& CharList, vector<string>& currMap)
 		"                                         ",
 
 	};
+
+	// 
+	ifstream inFile; bool loadDefaults = false;
+	vector<int> loadedCodes;
+	int aKeyCode, count = 0;
+	keyBinds.resize(NUM_KEYCODES);
+
+	inFile.open("keyBindings.txt");
+	// If there is a saved file of key bindings
+	if (inFile) {
+		
+		while (inFile >> aKeyCode) {
+			aKeyCode = loadedCodes[count];
+			count++;
+		}
+
+		inFile.close();
+
+		// If we had loaded in the correct amount, send it in to our keyBinds vector
+		if (count == NUM_KEYCODES-1) {
+			keyBinds = loadedCodes;
+			loadDefaults = false;
+		}
+		// If there isn't the correct amount
+		else {
+			
+			loadDefaults = true;
+			
+		}
+	}
+	else { loadDefaults = true;  }
+	
+	// If there isn't a VALID saved file of key bindings, then we need to use the defaults
+	if (loadDefaults) {
+		// DEBUG
+		//cout << "Saving defaults.\n\n";
+
+		// enum keyCodes { MOVE_UP, MOVE_DOWN, MOVE_LEFT, MOVE_RIGHT, INTERACT, OPEN_INVENTORY, NUM_KEYCODES};
+		for (int j = 0; j < NUM_KEYCODES; j++) {
+
+			keyBinds[j] = DefaultControls[j];
+		}
+	}
+	// Done	
+}
+
+void changeKeyBindings()
+{
+	int userInput; bool currentlySwitching = false;
+	vector<bool> keyOptions(NUM_KEYCODES, false);
+	vector<string> controlNames = { "Move Up" , "Move Down", "Move Left", "Move Right", "Interact", "Open Inventory" };
+	keyOptions.resize(NUM_KEYCODES);
+	int selectedOption = 0;	
+	
+	//vector<int>::iterator keyBinds_It;
+
+	keyOptions[selectedOption] = true;
+
+	while (1) {
+		
+		cls();
+
+		DisplayTitle("Change Key Bindings");
+
+		currentlySwitching ? cout << " Enter a key to change:  " << controlNames[selectedOption] : cout << " W/S - Navigate,\t Spacebar - Select";
+		cout << endl << endl;
+
+		cout << "   Key | Action" << endl;
+		cout << " ------------------------" << endl;
+
+		for (int i = 0; i < NUM_KEYCODES; i++) {
+
+			keyOptions[i] ? cout << " > " : cout << "   ";
+			cout << "[";
+			currentlySwitching && (i == selectedOption) ? cout << "?" : cout << char(toupper(keyBinds[i]));
+			cout << "] | " << controlNames[i] << endl;
+		}
+
+		cout << endl << " Backspace - Restore defaults" << endl << endl;
+
+		userInput = _getch();
+
+		
+
+		// If currently switching a bound key,
+		if (currentlySwitching) {
+
+			// If the player inputted Esc or Backspace, ignore the key and don't change it
+			if (userInput != char(27) && userInput != char(8)) {
+								
+				// Then simply replace the currently selected option's key with the key just selected, and toggle it back to false
+				keyBinds[selectedOption] = tolower(userInput);
+				
+			}
+			// At this point, we are no longer in the "switching" mode
+			currentlySwitching = false;
+		}
+		else {
+
+			switch (char(userInput)) {
+
+				// Move up option (W)
+			case 'w':
+			case 'W':
+
+				// Deselect the current select option as being true, shift it (wrap around if necessary), and then set the upper one to true (currently selected)
+				keyOptions[selectedOption] = false;
+				selectedOption == 0 ? selectedOption = NUM_KEYCODES - 1 : selectedOption--;
+				keyOptions[selectedOption] = true;
+				break;
+
+				// Move down option (S)
+			case 's':
+			case 'S':
+
+				keyOptions[selectedOption] = false;
+				selectedOption == NUM_KEYCODES - 1 ? selectedOption = 0 : selectedOption++;
+				keyOptions[selectedOption] = true;
+				break;
+
+				// Select option (spacebar)
+			case ' ':
+
+				currentlySwitching = true;
+				break;
+
+				// Esc (return)
+			case char(27) :
+				return;
+				break;
+
+				// Backspace (restore default controls)
+			case char(8) :
+				// enum keyCodes { MOVE_UP, MOVE_DOWN, MOVE_LEFT, MOVE_RIGHT, INTERACT, OPEN_INVENTORY, NUM_KEYCODES};
+				for (int i = 0; i < NUM_KEYCODES; i++) {
+
+					for (int j = 0; j < NUM_KEYCODES; j++) {
+
+						keyBinds[j] = DefaultControls[j];
+					}
+
+				}
+				break;
+
+			default:
+				break;
+
+			}	// end while
+		}
+
+	}
+	
+}
+
+void MainMenu()
+{
+	const short int BAR_WIDTH = 32;
+
+	int userInput;
+
+	cls();
+	SetConsoleTextAttribute(hConsole, WHITE);
+	DisplayTitle("Roguelike Demo");
+
+	cout << "[4] Play Game" << endl;
+	cout << "[5] Key Bindings" << endl;
+	cout << "[6] Quit" << endl;
+	cout << endl;
+
+}
+
+void DisplayTitle(string title)
+{
+	const int WfromS = 11;
+	// To center it, make within the box constraints, the title always has 11 empty spaces on either side
+	// Therefore the BAR_WIDTH calculation (length of the outer border) will be:
+	// title.length() + 11*2 + 2
+	short int BAR_WIDTH = title.length() + (WfromS * 2);
+	
+	cout << CharList[TopLeftCorner];
+	for (int i = 0; i < BAR_WIDTH; i++) {
+		cout << CharList[Horizontal];
+	}
+	cout << CharList[TopRightCorner] << endl;
+
+	cout << CharList[Vertical];
+	for (int j = 0; j < WfromS; j++) {
+		if (j > 0 && j < 4) {
+			cout << "~";
+		}
+		else {
+			cout << " ";
+		}
+	}
+	cout << title;
+	for (int j = 0; j < WfromS; j++) {
+		if (j > WfromS -  5 && j < WfromS - 1) {
+			cout << "~";
+		}
+		else {
+			cout << " ";
+		}
+	}
+
+	//cout << " ~~~      ROGUELIKE       ~~~ ";
+	cout << CharList[Vertical] << endl;
+
+	cout << CharList[BottomLeftCorner];
+	for (int i = 0; i < BAR_WIDTH; i++) {
+		cout << CharList[Horizontal];
+	}
+	cout << CharList[BottomRightCorner] << endl;
+
+	cout << endl;
 }
